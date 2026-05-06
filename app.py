@@ -5,9 +5,10 @@ from ultralytics import YOLO
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 
-# --- UI CONFIG ---
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="VisionBot AI", page_icon="🔍", layout="wide")
 
+# --- UI STYLE ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -40,14 +41,29 @@ model_path = 'yolov8n.pt' if "Nano" in model_type else 'yolov8s.pt'
 conf_threshold = st.sidebar.slider("Confidence", 0.0, 1.0, 0.45)
 iou_threshold = st.sidebar.slider("IOU", 0.0, 1.0, 0.50)
 
-# --- START BUTTON (IMPORTANT FIX) ---
-run = st.checkbox("Start Camera")
+# --- SESSION STATE (FIXES RELOAD LOOP) ---
+if "run" not in st.session_state:
+    st.session_state.run = False
+
+col_btn1, col_btn2 = st.columns(2)
+
+with col_btn1:
+    if st.button("▶ Start Camera"):
+        st.session_state.run = True
+
+with col_btn2:
+    if st.button("⏹ Stop Camera"):
+        st.session_state.run = False
+
+# --- LOAD MODEL (CACHED) ---
+@st.cache_resource
+def load_model(path):
+    return YOLO(path)
 
 # --- VIDEO PROCESSOR ---
 class VideoProcessor:
     def __init__(self):
-        # Load model here to avoid blocking stream start
-        self.model = YOLO(model_path)
+        self.model = load_model(model_path)
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -61,7 +77,7 @@ class VideoProcessor:
         annotated = results[0].plot()
         return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
-# --- RTC CONFIG (IMPROVED) ---
+# --- RTC CONFIG (STRONGER CONNECTION) ---
 RTC_CONFIGURATION = RTCConfiguration({
     "iceServers": [
         {"urls": ["stun:stun.l.google.com:19302"]},
@@ -69,21 +85,18 @@ RTC_CONFIGURATION = RTCConfiguration({
     ]
 })
 
+# --- LAYOUT ---
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    if run:
-        webrtc_ctx = webrtc_streamer(
-            key="vision-bot",
-            mode=WebRtcMode.SENDRECV,
-            rtc_configuration=RTC_CONFIGURATION,
-            video_processor_factory=VideoProcessor,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=False,  # IMPORTANT FIX
-        )
-    else:
-        webrtc_ctx = None
-        st.info("Click 'Start Camera' to begin")
+    webrtc_ctx = webrtc_streamer(
+        key="vision-bot",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTC_CONFIGURATION,
+        video_processor_factory=VideoProcessor if st.session_state.run else None,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=False,
+    )
 
 with col2:
     st.markdown("<div class='status-box'>", unsafe_allow_html=True)
