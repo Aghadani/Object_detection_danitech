@@ -6,7 +6,7 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="DZ VisionBot AI", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="VisionBot AI", page_icon="🔍", layout="wide")
 
 # --- UI STYLE ---
 st.markdown("""
@@ -27,6 +27,7 @@ st.markdown("""
 
 st.markdown("<h1 class='stTitle'>🔍 VisionBot: Real-Time Object Intelligence</h1>", unsafe_allow_html=True)
 st.write("### Intelligent Detection")
+st.info("👇 Click the **START** button inside the video box below to activate your camera.")
 
 # --- SIDEBAR ---
 st.sidebar.title("Control Panel")
@@ -38,8 +39,8 @@ model_type = st.sidebar.selectbox(
 
 model_path = 'yolov8n.pt' if "Nano" in model_type else 'yolov8s.pt'
 
-conf_threshold = st.sidebar.slider("Confidence", 0.0, 1.0, 0.45)
-iou_threshold = st.sidebar.slider("IOU", 0.0, 1.0, 0.50)
+conf_threshold = st.sidebar.slider("Confidence", 0.0, 1.0, 0.45, key="conf")
+iou_threshold = st.sidebar.slider("IOU", 0.0, 1.0, 0.50, key="iou")
 
 # --- LOAD MODEL (CACHED) ---
 @st.cache_resource
@@ -81,17 +82,18 @@ RTC_CONFIGURATION = RTCConfiguration({
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    # FIX 3: Always pass VideoProcessor as the factory — never None.
-    # Passing None shuts down an active WebRTC stream on every rerun.
-    # The Start/Stop buttons below control desired_playing_state instead,
-    # which is the correct way to pause/resume a WebRTC stream in streamlit-webrtc.
     webrtc_ctx = webrtc_streamer(
         key="vision-bot",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIGURATION,
         video_processor_factory=VideoProcessor,
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,  # FIX 4: Use async_processing=True for smoother frames
+        async_processing=True,
+        translations={
+            "start": "▶ Start Camera",
+            "stop": "⏹ Stop Camera",
+            "select-device": "Select Camera",
+        },
     )
 
     # FIX 5: Update processor thresholds live when sliders change,
