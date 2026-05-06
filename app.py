@@ -75,7 +75,7 @@ with col1:
         annotated = results[0].plot()
         annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
 
-        st.image(annotated_rgb, caption="Detection Output", use_container_width=True)
+        st.image(annotated_rgb, caption="Detection Output", use_column_width=True)
 
         detected = results[0].names
         boxes = results[0].boxes
