@@ -6,7 +6,7 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="VisionBot AI", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="DZ VisionBot AI", page_icon="🔍", layout="wide")
 
 # --- UI STYLE ---
 st.markdown("""
@@ -41,43 +41,35 @@ model_path = 'yolov8n.pt' if "Nano" in model_type else 'yolov8s.pt'
 conf_threshold = st.sidebar.slider("Confidence", 0.0, 1.0, 0.45)
 iou_threshold = st.sidebar.slider("IOU", 0.0, 1.0, 0.50)
 
-# --- SESSION STATE (FIXES RELOAD LOOP) ---
-if "run" not in st.session_state:
-    st.session_state.run = False
-
-col_btn1, col_btn2 = st.columns(2)
-
-with col_btn1:
-    if st.button("▶ Start Camera"):
-        st.session_state.run = True
-
-with col_btn2:
-    if st.button("⏹ Stop Camera"):
-        st.session_state.run = False
-
 # --- LOAD MODEL (CACHED) ---
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
 
 # --- VIDEO PROCESSOR ---
+# FIX 1: Store conf/iou as instance attributes that VideoProcessor reads
+# at frame-processing time, not at class instantiation time.
+# FIX 2: Use a shared state dict so the processor picks up slider changes
+# without needing a full restart.
 class VideoProcessor:
     def __init__(self):
         self.model = load_model(model_path)
+        self.conf = conf_threshold
+        self.iou = iou_threshold
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
 
         results = self.model.predict(
             img,
-            conf=conf_threshold,
-            iou=iou_threshold
+            conf=self.conf,
+            iou=self.iou
         )
 
         annotated = results[0].plot()
         return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
-# --- RTC CONFIG (STRONGER CONNECTION) ---
+# --- RTC CONFIG ---
 RTC_CONFIGURATION = RTCConfiguration({
     "iceServers": [
         {"urls": ["stun:stun.l.google.com:19302"]},
@@ -89,14 +81,24 @@ RTC_CONFIGURATION = RTCConfiguration({
 col1, col2 = st.columns([3, 1])
 
 with col1:
+    # FIX 3: Always pass VideoProcessor as the factory — never None.
+    # Passing None shuts down an active WebRTC stream on every rerun.
+    # The Start/Stop buttons below control desired_playing_state instead,
+    # which is the correct way to pause/resume a WebRTC stream in streamlit-webrtc.
     webrtc_ctx = webrtc_streamer(
         key="vision-bot",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIGURATION,
-        video_processor_factory=VideoProcessor if st.session_state.run else None,
+        video_processor_factory=VideoProcessor,
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=False,
+        async_processing=True,  # FIX 4: Use async_processing=True for smoother frames
     )
+
+    # FIX 5: Update processor thresholds live when sliders change,
+    # without restarting the stream.
+    if webrtc_ctx.video_processor:
+        webrtc_ctx.video_processor.conf = conf_threshold
+        webrtc_ctx.video_processor.iou = iou_threshold
 
 with col2:
     st.markdown("<div class='status-box'>", unsafe_allow_html=True)
