@@ -5,10 +5,10 @@ from ultralytics import YOLO
 from PIL import Image
 import io
 
-# --- PAGE CONFIG ---
+# PAGE CONFIG 
 st.set_page_config(page_title="VisionBot AI", page_icon="🔍", layout="wide")
 
-# --- UI STYLE ---
+# UI STYLE 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -28,7 +28,7 @@ st.markdown("""
 st.markdown("<h1 class='stTitle'>🔍 VisionBot: Real-Time Object Intelligence</h1>", unsafe_allow_html=True)
 st.write("### Intelligent Detection")
 
-# --- SIDEBAR ---
+# SIDEBAR 
 st.sidebar.title("Control Panel")
 
 model_type = st.sidebar.selectbox(
@@ -44,14 +44,14 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("**How to use:**")
 st.sidebar.markdown("1. Allow camera access when prompted\n2. Point your camera at objects\n3. Click the capture button — detection runs instantly")
 
-# --- LOAD MODEL (CACHED) ---
+#  LOAD MODEL 
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
 
 model = load_model(model_path)
 
-# --- LAYOUT ---
+#  LAYOUT
 col1, col2 = st.columns([3, 1])
 
 with col1:
